@@ -8,7 +8,7 @@
 import SwiftUI
 import NostrSDK
 
-struct LegacyDirectMessageDemoView: View, EventCreating {
+struct DirectMessageDemoView: View, EventCreating {
 
     @EnvironmentObject var relayPool: RelayPool
 
@@ -41,10 +41,15 @@ struct LegacyDirectMessageDemoView: View, EventCreating {
                     return
                 }
                 do {
-                    let directMessage = try legacyEncryptedDirectMessage(withContent: message,
-                                                                         toRecipient: recipientPublicKey,
-                                                                         signedBy: senderKeyPair)
-                    relayPool.publishEvent(directMessage)
+                    let directMessage = DirectMessageEvent.Builder()
+                        .appendTags(.pubkey(recipientPublicKey.hex))
+                        .content(message)
+                        .build(pubkey: senderKeyPair.publicKey)
+
+                    let giftWrap = try giftWrap(withDirectMessageEvent: directMessage,
+                                                toRecipient: recipientPublicKey,
+                                                signedBy: senderKeyPair)
+                    relayPool.publishEvent(giftWrap)
                 } catch {
                     print(error.localizedDescription)
                 }
@@ -76,8 +81,8 @@ struct LegacyDirectMessageDemoView: View, EventCreating {
     }
 }
 
-struct LegacyDirectMessageDemoView_Previews: PreviewProvider {
+struct DirectMessageDemoView_Previews: PreviewProvider {
     static var previews: some View {
-        LegacyDirectMessageDemoView()
+        DirectMessageDemoView()
     }
 }

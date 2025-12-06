@@ -222,7 +222,7 @@ public enum EventKind: RawRepresentable, CaseIterable, Codable, Equatable, Hasha
         case .metadata:                     return MetadataEvent.self
         case .textNote:                     return TextNoteEvent.self
         case .followList:                   return FollowListEvent.self
-        case .legacyEncryptedDirectMessage: return LegacyEncryptedDirectMessageEvent.self
+        case .legacyEncryptedDirectMessage: return NostrEvent.self
         case .deletion:                     return DeletionEvent.self
         case .repost:                       return TextNoteRepostEvent.self
         case .reaction:                     return ReactionEvent.self

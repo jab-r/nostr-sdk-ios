@@ -23,9 +23,9 @@ struct ContentView: View {
                                    imageName: "list.bullet.rectangle.portrait",
                                    labelText: "Query Relays")
                     ListOptionView(destinationView:
-                                    AnyView(LegacyDirectMessageDemoView()),
+                                    AnyView(DirectMessageDemoView()),
                                    imageName: "list.bullet",
-                                   labelText: "NIP-04 Direct Message")
+                                   labelText: "NIP-17 Direct Message")
                     ListOptionView(destinationView:
                                     AnyView(EncryptMessageDemoView()),
                                    imageName: "list.bullet",
