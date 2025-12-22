@@ -196,6 +196,6 @@ These features can be built on top of the current foundation as needed.
 
 ## Resources
 
-- [NIP-EE Specification](https://github.com/nostr-protocol/nips/blob/master/ee.md)
+- [NIP-EE-RELAY Specification](https://github.com/jab-r/nostr-sdk-ios/NIP-EE-RELAY.md)
 - [MLS Protocol RFC](https://datatracker.ietf.org/doc/rfc9420/)
-- [NostrSDK Documentation](https://github.com/nostr-sdk/nostr-sdk-ios)
+- [NostrSDK Documentation](https://github.com/jab-r/nostr-sdk-ios)

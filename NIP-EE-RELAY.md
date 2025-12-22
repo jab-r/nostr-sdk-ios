@@ -1,4 +1,4 @@
-# NIP-EE
+# NIP-EE-RELAY
 
 ## E2EE Messaging using the Messaging Layer Security (MLS) Protocol
 
@@ -208,6 +208,89 @@ A `kind: 10051` event indicates the relays that a user will publish their KeyPac
   //...other fields
 }
 ```
+
+### KeyPackage Request Event
+
+The KeyPackage Request Event (kind 447) serves as a notification mechanism to prompt users to publish fresh KeyPackages when needed. While many clients proactively maintain a pool of KeyPackages (e.g., replenishing on startup), the request mechanism remains valuable for several scenarios:
+
+**When kind 447 is needed:**
+- **KeyPackage Exhaustion**: Even with proactive replenishment, high demand can exhaust a user's KeyPackage pool faster than their client replenishes them.
+- **Offline Periods**: Users who have been offline may have had all their KeyPackages consumed while they were away.
+- **Specific Requirements**: The requester may need KeyPackages with specific ciphersuites or extensions that aren't in the user's current pool.
+- **Cross-client Coordination**: When multiple clients/devices for the same user need to coordinate KeyPackage availability.
+- **Fallback Mechanism**: Serves as a reliable fallback when proactive management fails or isn't implemented by a client.
+
+**Implementation approaches:**
+1. **Proactive Only**: Clients regularly check and replenish KeyPackages (e.g., on startup, after joins)
+2. **Reactive Only**: Clients only publish KeyPackages in response to kind 447 requests
+3. **Hybrid** (Recommended): Clients maintain a KeyPackage pool proactively but also respond to kind 447 requests
+
+The KeyPackage Request Event is sent as a [NIP-59](59.md) gift-wrapped event to notify a user that they should publish new KeyPackage Events.
+
+```json
+{
+   "id": <id>,
+   "kind": 447,
+   "created_at": <unix timestamp in seconds>,
+   "pubkey": <nostr identity pubkey of sender>,
+   "content": "",
+   "tags": [
+      ["p", <pubkey of the recipient who should publish new KeyPackages>],
+      ["ciphersuite", <optional preferred MLS CipherSuite ID value e.g. "0x0001">],
+      ["extensions", <optional array of required MLS Extension ID values e.g. "0x0001, 0x0002">],
+      ["reason", <optional human-readable reason for the request>]
+   ],
+   "sig": <NOT SIGNED>
+}
+```
+
+- The `p` tag is required and identifies the user who should publish new KeyPackages.
+- The `ciphersuite` tag is optional and suggests a preferred MLS ciphersuite for the new KeyPackages.
+- The `extensions` tag is optional and lists MLS extensions that the new KeyPackages should support.
+- The `reason` tag is optional and provides a human-readable explanation for why new KeyPackages are needed.
+
+KeyPackage Request Events are then sealed and gift-wrapped as detailed in [NIP-59](59.md) before being published. Like all events that are sealed and gift-wrapped, `kind: 447` events MUST never be signed. This ensures that if they were ever leaked they would not be publishable to relays.
+
+Clients receiving a KeyPackage Request Event SHOULD:
+1. Verify the request is from a known/trusted user (optional)
+2. Check if they have recently published KeyPackages
+3. Generate and publish new KeyPackage Events if appropriate
+4. Consider the suggested ciphersuite and extensions when creating new KeyPackages
+
+#### KeyPackage Request/Response Flow
+
+The complete flow for requesting and publishing new KeyPackages is:
+
+1. **Alice wants to add Bob to a group** but cannot find any available KeyPackage Events (kind 443) for Bob
+2. **Alice sends a KeyPackage Request** (kind 447) to Bob:
+   - Gift-wrapped and sent to Bob's inbox relay(s)
+   - May include preferred ciphersuite/extensions
+3. **Bob receives the request** and decides to publish new KeyPackages:
+   - Creates one or more new KeyPackage Events (kind 443)
+   - Publishes them to his KeyPackage relays (as listed in his kind 10051 event)
+4. **Alice queries Bob's KeyPackage relays**:
+   - First queries for Bob's KeyPackage Relay List Event (kind 10051) using a filter like:
+     ```json
+     {
+       "kinds": [10051],
+       "authors": ["<Bob's pubkey>"]
+     }
+     ```
+   - From the relay list, queries each relay for Bob's KeyPackages using:
+     ```json
+     {
+       "kinds": [443],
+       "authors": ["<Bob's pubkey>"],
+       "since": <reasonable timestamp to get recent packages>
+     }
+     ```
+   - Validates that the KeyPackages support the required ciphersuite and extensions
+   - Uses one KeyPackage to add Bob to the group
+   - Sends Bob a Welcome Event (kind 444) to complete the group addition
+
+This asynchronous flow allows users to be added to groups even when they're offline, while the request mechanism ensures fresh KeyPackages are available when needed.
+
+**Note on Relay Behavior**: Relays implementing this protocol SHOULD cache KeyPackage Events (kind 443) to ensure they remain available for users wanting to add others to groups. This caching behavior is essential for the asynchronous nature of the protocol, allowing Bob to be sent a Welcome Event even when he's offline.
 
 ### Welcome Event
 
