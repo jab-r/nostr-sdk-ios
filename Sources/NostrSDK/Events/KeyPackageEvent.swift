@@ -2,7 +2,7 @@
 //  KeyPackageEvent.swift
 //  
 //
-//  Created by NostrSDK Contributors.
+//  Copyright (c) 2025 Jonathan Borden
 //
 
 import Foundation
