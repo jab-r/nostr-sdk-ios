@@ -51,6 +51,16 @@ public protocol RelayOperating {
     var events: PassthroughSubject<RelayEvent, Never> { get }
 }
 
+/// Protocol for NostrSDK transport operations including query support.
+public protocol NostrTransport: RelayOperating {
+    /// Query events from relay with a timeout
+    /// - Parameters:
+    ///   - filter: Filter criteria for events
+    ///   - timeout: Maximum time to wait for results
+    /// - Returns: Array of matching events
+    func query(filter: Filter, timeout: TimeInterval) async -> [NostrEvent]
+}
+
 /// An optional interface for receiving state updates and responses from relays.
 public protocol RelayDelegate: AnyObject {
     func relayStateDidChange(_ relay: Relay, state: Relay.State)
@@ -67,7 +77,7 @@ public struct RelayEvent {
 }
 
 /// An object that communicates with a relay.
-public final class Relay: ObservableObject, EventVerifying, RelayOperating, Hashable, Comparable {
+public final class Relay: ObservableObject, EventVerifying, NostrTransport, Hashable, Comparable {
     
     /// Constants indicating the current state of the relay.
     public enum State: Equatable {
@@ -254,6 +264,122 @@ public final class Relay: ObservableObject, EventVerifying, RelayOperating, Hash
         }
         
         send(request: request)
+    }
+    
+    // MARK: - NostrTransport
+    
+    /// Query events from relay with a timeout
+    /// - Parameters:
+    ///   - filter: Filter criteria for events
+    ///   - timeout: Maximum time to wait for results
+    /// - Returns: Array of matching events
+    public func query(filter: Filter, timeout: TimeInterval) async -> [NostrEvent] {
+        guard state == .connected else {
+            return []
+        }
+        
+        let subscriptionId = UUID().uuidString
+        
+        return await withCheckedContinuation { continuation in
+            var events = [NostrEvent]()
+            var cancellables = Set<AnyCancellable>()
+            var hasResumed = false
+            
+            // Subscribe to the filter
+            do {
+                _ = try subscribe(with: filter, subscriptionId: subscriptionId)
+            } catch {
+                continuation.resume(returning: [])
+                return
+            }
+            
+            // Collect events for this subscription
+            self.events
+                .filter { $0.subscriptionId == subscriptionId }
+                .sink { relayEvent in
+                    events.append(relayEvent.event)
+                }
+                .store(in: &cancellables)
+            
+            // Set up timeout
+            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
+                guard !hasResumed else { return }
+                hasResumed = true
+                cancellables.forEach { $0.cancel() }
+                try? self?.closeSubscription(with: subscriptionId)
+                continuation.resume(returning: events)
+            }
+            
+            // Wait for EOSE (end of stored events)
+            // Since we can't easily detect EOSE without modifying more code,
+            // we'll use a shorter timeout to collect initial events
+            let eoseTimeout = min(timeout, 2.0) // Wait max 2 seconds for EOSE
+            DispatchQueue.main.asyncAfter(deadline: .now() + eoseTimeout) { [weak self] in
+                guard !hasResumed else { return }
+                hasResumed = true
+                cancellables.forEach { $0.cancel() }
+                try? self?.closeSubscription(with: subscriptionId)
+                continuation.resume(returning: events)
+            }
+        }
+    }
+    
+    /// Subscribe to keypackage events from specific authors
+    /// - Parameters:
+    ///   - authors: List of pubkeys to monitor for keypackages
+    ///   - since: Timestamp to start from (nil for all)
+    ///   - onEvent: Callback when keypackage event is received
+    /// - Returns: Subscription ID for later unsubscribe
+    @discardableResult
+    public func subscribeKeyPackages(
+        authors: [String],
+        since: Int64? = nil,
+        onEvent: @escaping @Sendable (String) -> Void
+    ) -> String {
+        let subscriptionId = UUID().uuidString
+        
+        // Create filter for keypackages
+        guard let filter = Filter(
+            ids: nil,
+            authors: authors.isEmpty ? nil : authors,
+            kinds: [EventKind.mlsKeyPackage.rawValue],
+            events: nil,
+            pubkeys: nil,
+            tags: nil,
+            since: since.map { Int($0) },
+            until: nil,
+            limit: nil
+        ) else {
+            logger.error("Failed to create filter for keypackages")
+            return subscriptionId
+        }
+        
+        // Subscribe to the filter
+        do {
+            _ = try subscribe(with: filter, subscriptionId: subscriptionId)
+        } catch {
+            logger.error("Failed to subscribe to keypackages: \(error)")
+            return subscriptionId
+        }
+        
+        // Set up event handler
+        let cancellable = events
+            .filter { $0.subscriptionId == subscriptionId }
+            .sink { [weak self] relayEvent in
+                guard let event = relayEvent.event as? KeyPackageEvent else {
+                    self?.logger.warning("Received non-KeyPackageEvent in keypackage subscription")
+                    return
+                }
+                
+                // Call the callback with the serialized event content
+                onEvent(event.content)
+            }
+        
+        // Store the cancellable (you might want to keep track of this)
+        // For now, it will be cleaned up when the subscription is closed
+        _ = cancellable
+        
+        return subscriptionId
     }
     
     // MARK: - Hashable

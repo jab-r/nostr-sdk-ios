@@ -146,6 +146,38 @@ public enum EventKind: RawRepresentable, CaseIterable, Codable, Equatable, Hasha
     /// See [NIP-52 - Calendar Event RSVP](https://github.com/nostr-protocol/nips/blob/master/52.md#calendar-event-rsvp).
     case calendarEventRSVP
 
+    // MARK: - NIP-EE (MLS over Nostr) Events
+    
+    /// This kind of event contains an MLS KeyPackage that allows users to be added to groups asynchronously.
+    ///
+    /// See [NIP-EE](https://github.com/nostr-protocol/nips/blob/master/ee.md).
+    case mlsKeyPackage
+    
+    /// This kind of event contains an MLS Welcome message, sent as a gift-wrapped event to new group members.
+    ///
+    /// See [NIP-EE](https://github.com/nostr-protocol/nips/blob/master/ee.md).
+    case mlsWelcome
+    
+    /// This kind of event contains MLS group messages (control messages and application messages).
+    ///
+    /// See [NIP-EE](https://github.com/nostr-protocol/nips/blob/master/ee.md).
+    case mlsGroupMessage
+    
+    /// This kind of event is used to request keypackages from other users.
+    ///
+    /// See [NIP-EE](https://github.com/nostr-protocol/nips/blob/master/ee.md).
+    case keyPackageRequest
+    
+    /// This kind of event defines roster policies for groups.
+    ///
+    /// See [NIP-EE](https://github.com/nostr-protocol/nips/blob/master/ee.md).
+    case rosterPolicy
+    
+    /// This kind of event indicates the relays that a user will publish their KeyPackage Events to.
+    ///
+    /// See [NIP-EE](https://github.com/nostr-protocol/nips/blob/master/ee.md).
+    case keyPackageRelayList
+
     /// Any other event kind number that isn't supported by this enum yet will be represented by `unknown` so that `NostrEvent`s of those event kinds can still be encoded and decoded.
     case unknown(RawValue)
 
@@ -174,7 +206,13 @@ public enum EventKind: RawRepresentable, CaseIterable, Codable, Equatable, Hasha
         .dateBasedCalendarEvent,
         .timeBasedCalendarEvent,
         .calendar,
-        .calendarEventRSVP
+        .calendarEventRSVP,
+        .mlsKeyPackage,
+        .mlsWelcome,
+        .mlsGroupMessage,
+        .keyPackageRequest,
+        .rosterPolicy,
+        .keyPackageRelayList
     ]
 
     public init(rawValue: Int) {
@@ -212,6 +250,12 @@ public enum EventKind: RawRepresentable, CaseIterable, Codable, Equatable, Hasha
         case .timeBasedCalendarEvent:       return 31923
         case .calendar:                     return 31924
         case .calendarEventRSVP:            return 31925
+        case .mlsKeyPackage:                return 443
+        case .mlsWelcome:                   return 444
+        case .mlsGroupMessage:              return 445
+        case .keyPackageRequest:            return 447
+        case .rosterPolicy:                 return 450
+        case .keyPackageRelayList:          return 10051
         case let .unknown(value):           return value
         }
     }
@@ -243,6 +287,12 @@ public enum EventKind: RawRepresentable, CaseIterable, Codable, Equatable, Hasha
         case .timeBasedCalendarEvent:       return TimeBasedCalendarEvent.self
         case .calendar:                     return CalendarListEvent.self
         case .calendarEventRSVP:            return CalendarEventRSVP.self
+        case .mlsKeyPackage:                return KeyPackageEvent.self
+        case .mlsWelcome:                   return NostrEvent.self  // Will be replaced with WelcomeEvent.self
+        case .mlsGroupMessage:              return NostrEvent.self  // Will be replaced with GroupMessageEvent.self
+        case .keyPackageRequest:            return NostrEvent.self
+        case .rosterPolicy:                 return NostrEvent.self
+        case .keyPackageRelayList:          return NostrEvent.self  // Will be replaced with KeyPackageRelayListEvent.self
         case .unknown:                      return NostrEvent.self
         }
     }
