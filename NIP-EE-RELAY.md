@@ -209,88 +209,83 @@ A `kind: 10051` event indicates the relays that a user will publish their KeyPac
 }
 ```
 
-### KeyPackage Request Event
+### KeyPackage Management and Consumption
 
-The KeyPackage Request Event (kind 447) serves as a notification mechanism to prompt users to publish fresh KeyPackages when needed. While many clients proactively maintain a pool of KeyPackages (e.g., replenishing on startup), the request mechanism remains valuable for several scenarios:
+MLS-aware relays implement special handling for KeyPackage Events (kind 443) to ensure proper security semantics. The core principle is: **once a KeyPackage is exposed (returned in a query), it must be considered consumed**.
 
-**When kind 447 is needed:**
-- **KeyPackage Exhaustion**: Even with proactive replenishment, high demand can exhaust a user's KeyPackage pool faster than their client replenishes them.
-- **Offline Periods**: Users who have been offline may have had all their KeyPackages consumed while they were away.
-- **Specific Requirements**: The requester may need KeyPackages with specific ciphersuites or extensions that aren't in the user's current pool.
-- **Cross-client Coordination**: When multiple clients/devices for the same user need to coordinate KeyPackage availability.
-- **Fallback Mechanism**: Serves as a reliable fallback when proactive management fails or isn't implemented by a client.
+#### Automatic Consumption on Query
 
-**Implementation approaches:**
-1. **Proactive Only**: Clients regularly check and replenish KeyPackages (e.g., on startup, after joins)
-2. **Reactive Only**: Clients only publish KeyPackages in response to kind 447 requests
-3. **Hybrid** (Recommended): Clients maintain a KeyPackage pool proactively but also respond to kind 447 requests
+When a relay receives a REQ query for KeyPackages (kind 443), it automatically manages consumption:
 
-The KeyPackage Request Event is sent as a [NIP-59](59.md) gift-wrapped event to notify a user that they should publish new KeyPackage Events.
-
-```json
-{
-   "id": <id>,
-   "kind": 447,
-   "created_at": <unix timestamp in seconds>,
-   "pubkey": <nostr identity pubkey of sender>,
-   "content": "",
-   "tags": [
-      ["p", <pubkey of the recipient who should publish new KeyPackages>],
-      ["ciphersuite", <optional preferred MLS CipherSuite ID value e.g. "0x0001">],
-      ["extensions", <optional array of required MLS Extension ID values e.g. "0x0001, 0x0002">],
-      ["reason", <optional human-readable reason for the request>]
-   ],
-   "sig": <NOT SIGNED>
-}
+```
+Alice → Relay: REQ {"kinds":[443], "authors":["bob_pubkey"]}
+Relay:
+  1. Query Bob's stored KeyPackages
+  2. Apply last-resort protection (never consume the last KeyPackage)
+  3. Return available KeyPackages to Alice (max 2 per query)
+  4. Mark returned KeyPackages as consumed
+  5. Track rate limits for Alice
+Alice ← Relay: EVENT (Bob's KeyPackages)
 ```
 
-- The `p` tag is required and identifies the user who should publish new KeyPackages.
-- The `ciphersuite` tag is optional and suggests a preferred MLS ciphersuite for the new KeyPackages.
-- The `extensions` tag is optional and lists MLS extensions that the new KeyPackages should support.
-- The `reason` tag is optional and provides a human-readable explanation for why new KeyPackages are needed.
+This automatic consumption ensures that:
+- KeyPackages cannot be reused after exposure
+- MLS security properties are maintained at the relay level
+- Clients don't need to implement consumption logic
 
-KeyPackage Request Events are then sealed and gift-wrapped as detailed in [NIP-59](59.md) before being published. Like all events that are sealed and gift-wrapped, `kind: 447` events MUST never be signed. This ensures that if they were ever leaked they would not be publishable to relays.
+#### Rate Limiting
 
-Clients receiving a KeyPackage Request Event SHOULD:
-1. Verify the request is from a known/trusted user (optional)
-2. Check if they have recently published KeyPackages
-3. Generate and publish new KeyPackage Events if appropriate
-4. Consider the suggested ciphersuite and extensions when creating new KeyPackages
+To prevent abuse, relays enforce rate limits on KeyPackage queries:
+- **Per requester-author pair**: Maximum 10 queries per hour
+- **KeyPackages per query**: Maximum 2 returned per query
+- **Sliding window**: Rate limits use a sliding window approach
 
-#### KeyPackage Request/Response Flow
+#### Last Resort Protection
 
-The complete flow for requesting and publishing new KeyPackages is:
+Relays implementing this protocol MUST maintain "last resort" protection:
+- The last remaining KeyPackage for a user is NEVER consumed
+- It may be returned in queries but remains available for future use
+- This ensures users can always receive at least one group invitation
+- Users should publish new KeyPackages before their supply drops to 1
 
-1. **Alice wants to add Bob to a group** but cannot find any available KeyPackage Events (kind 443) for Bob
-2. **Alice sends a KeyPackage Request** (kind 447) to Bob:
-   - Gift-wrapped and sent to Bob's inbox relay(s)
-   - May include preferred ciphersuite/extensions
-3. **Bob receives the request** and decides to publish new KeyPackages:
-   - Creates one or more new KeyPackage Events (kind 443)
-   - Publishes them to his KeyPackage relays (as listed in his kind 10051 event)
-4. **Alice queries Bob's KeyPackage relays**:
-   - First queries for Bob's KeyPackage Relay List Event (kind 10051) using a filter like:
-     ```json
-     {
-       "kinds": [10051],
-       "authors": ["<Bob's pubkey>"]
-     }
-     ```
-   - From the relay list, queries each relay for Bob's KeyPackages using:
-     ```json
-     {
-       "kinds": [443],
-       "authors": ["<Bob's pubkey>"],
-       "since": <reasonable timestamp to get recent packages>
-     }
-     ```
-   - Validates that the KeyPackages support the required ciphersuite and extensions
-   - Uses one KeyPackage to add Bob to the group
-   - Sends Bob a Welcome Event (kind 444) to complete the group addition
+#### Relay-Initiated Replenishment
 
-This asynchronous flow allows users to be added to groups even when they're offline, while the request mechanism ensures fresh KeyPackages are available when needed.
+MLS-aware relays monitor KeyPackage supplies and can proactively request replenishment:
 
-**Note on Relay Behavior**: Relays implementing this protocol SHOULD cache KeyPackage Events (kind 443) to ensure they remain available for users wanting to add others to groups. This caching behavior is essential for the asynchronous nature of the protocol, allowing Bob to be sent a Welcome Event even when he's offline.
+```
+1. Relay monitors user KeyPackage counts
+2. When a user's supply drops below threshold (e.g., 3):
+   - Relay sends REQ query to the user's client
+   - REQ {"kinds":[443], "authors":["user_pubkey"]}
+3. User's client receives the query and SHOULD:
+   - Generate fresh KeyPackages (e.g., 5-10)
+   - Publish them as kind 443 events
+4. Relay stores the new KeyPackages
+5. This relay->client query is *not* limited to 2 keypackages
+```
+
+This proactive approach ensures KeyPackage availability without requiring explicit request events.
+
+#### Client Behavior
+
+Clients implementing MLS over Nostr SHOULD:
+
+1. **Monitor KeyPackage queries**: When receiving REQ queries for their own KeyPackages, consider it a signal to replenish
+2. **Publish fresh KeyPackages**: Generate and publish 5-10 new KeyPackages when:
+   - Receiving queries for their own KeyPackages
+   - On startup if supply is low
+   - After being added to groups
+3. **Query judiciously**: Be aware that querying for KeyPackages consumes them
+
+#### Implementation Note
+
+This approach differs from traditional MLS deployments where KeyPackage consumption is explicitly signaled. In Nostr's decentralized environment, treating exposure as consumption provides stronger security guarantees and simplifies client implementation.
+
+### KeyPackage Request Event (Deprecated)
+
+**Note**: Kind 447 (KeyPackage Request) is deprecated in favor of the automatic consumption mechanism described above. MLS-aware relays use standard REQ queries to both deliver and signal the need for KeyPackages.
+
+For historical reference and backward compatibility, kind 447 was originally designed as an explicit request mechanism. New implementations should use the REQ-based approach described above.
 
 ### Welcome Event
 

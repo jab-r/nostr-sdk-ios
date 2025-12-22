@@ -163,9 +163,15 @@ public enum EventKind: RawRepresentable, CaseIterable, Codable, Equatable, Hasha
     /// See [NIP-EE](https://github.com/nostr-protocol/nips/blob/master/ee.md).
     case mlsGroupMessage
     
-    /// This kind of event is used to request keypackages from other users.
+    /// This kind of event is used to request keypackages from other users - DEPRECATED.
     ///
-    /// See [NIP-EE](https://github.com/nostr-protocol/nips/blob/master/ee.md).
+    /// - Warning: Kind 447 is deprecated in favor of REQ-based KeyPackage consumption.
+    ///   MLS-aware relays now automatically track KeyPackage consumption when they are
+    ///   returned in REQ queries. Relays can request replenishment by sending REQ queries
+    ///   for a user's own KeyPackages, which signals the client to publish fresh ones.
+    ///
+    /// See [NIP-EE-RELAY](https://github.com/nostr-protocol/nips/blob/master/ee.md) for details.
+    @available(*, deprecated, message: "Use REQ-based KeyPackage consumption. Relays automatically track consumption when KeyPackages are queried.")
     case keyPackageRequest
     
     /// This kind of event defines roster policies for groups.
