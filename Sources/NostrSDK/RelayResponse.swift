@@ -35,6 +35,7 @@ public enum RelayResponse: Decodable {
         case notice = "NOTICE"
         case auth = "AUTH"
         case count = "COUNT"
+        case req = "REQ"
     }
     
     public struct Message {
@@ -78,6 +79,7 @@ public enum RelayResponse: Decodable {
     case notice(message: String)
     case auth(challenge: String)
     case count(subscriptionId: String, count: Int)
+    case req(subscriptionId: String, filter: Filter)
 
     public init(from decoder: Decoder) throws {
         var container = try decoder.unkeyedContainer()
@@ -117,6 +119,10 @@ public enum RelayResponse: Decodable {
             let subscriptionId = try container.decode(String.self)
             let countResponse = try container.decode(CountResponse.self)
             self = .count(subscriptionId: subscriptionId, count: countResponse.count)
+        case .req:
+            let subscriptionId = try container.decode(String.self)
+            let filter = try container.decode(Filter.self)
+            self = .req(subscriptionId: subscriptionId, filter: filter)
         }
     }
 

@@ -2,7 +2,7 @@
 //  Relay.swift
 //  
 //
-//  Created by Bryan Montz on 6/5/23.
+//  Modified by Jonathan Borden on 12/22/25
 //
 
 import Combine
@@ -68,6 +68,17 @@ public protocol RelayDelegate: AnyObject {
     func relay(_ relay: Relay, didReceive response: RelayResponse)
 
     func relay(_ relay: Relay, didReceive event: RelayEvent)
+    
+    /// Called when the relay receives a subscription request (REQ)
+    /// This is useful for detecting relay-initiated KeyPackage replenishment requests
+    func relay(_ relay: Relay, didReceiveSubscriptionRequest subscriptionId: String, filter: Filter)
+}
+
+// Default implementation for backward compatibility
+public extension RelayDelegate {
+    func relay(_ relay: Relay, didReceiveSubscriptionRequest subscriptionId: String, filter: Filter) {
+        // Default empty implementation
+    }
 }
 
 /// A struct containing a Nostr event and the subscription ID
@@ -169,6 +180,11 @@ public final class Relay: ObservableObject, EventVerifying, NostrTransport, Hash
                 let relayEvent = RelayEvent(event: event, subscriptionId: subscriptionId)
                 events.send(relayEvent)
                 delegate?.relay(self, didReceive: relayEvent)
+                
+            case .req(let subscriptionId, let filter):
+                // Notify delegate about incoming subscription request
+                delegate?.relay(self, didReceiveSubscriptionRequest: subscriptionId, filter: filter)
+                
             default:
                 break
             }
