@@ -344,13 +344,14 @@ public final class Relay: ObservableObject, EventVerifying, NostrTransport, Hash
     /// - Parameters:
     ///   - authors: List of pubkeys to monitor for keypackages
     ///   - since: Timestamp to start from (nil for all)
-    ///   - onEvent: Callback when keypackage event is received
+    ///   - onEvent: Callback when keypackage event is received.
+    ///             The callback includes both the raw content string and the detected content encoding.
     /// - Returns: Subscription ID for later unsubscribe
     @discardableResult
     public func subscribeKeyPackages(
         authors: [String],
         since: Int64? = nil,
-        onEvent: @escaping @Sendable (String) -> Void
+        onEvent: @escaping @Sendable (_ content: String, _ encoding: KeyPackageEvent.ContentEncoding) -> Void
     ) -> String {
         let subscriptionId = UUID().uuidString
         
@@ -387,8 +388,9 @@ public final class Relay: ObservableObject, EventVerifying, NostrTransport, Hash
                     return
                 }
                 
-                // Call the callback with the serialized event content
-                onEvent(event.content)
+                // Call the callback with the serialized event content and encoding.
+                // If the `encoding` tag is absent, this defaults to `.hex` (legacy behavior).
+                onEvent(event.content, event.contentEncoding)
             }
         
         // Store the cancellable (you might want to keep track of this)

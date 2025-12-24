@@ -44,7 +44,7 @@ extension NostrTransport {
     func subscribeKeyPackages(
         authors: [String],
         since: Int64?,
-        onEvent: @escaping @Sendable (String) -> Void
+        onEvent: @escaping @Sendable (_ content: String, _ encoding: KeyPackageEvent.ContentEncoding) -> Void
     ) -> String
 }
 ```

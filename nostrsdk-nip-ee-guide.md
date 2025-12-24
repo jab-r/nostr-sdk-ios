@@ -114,9 +114,11 @@ let relay = Relay(url: URL(string: "wss://relay.example.com")!)
 let subscriptionId = relay.subscribeKeyPackages(
     authors: ["pubkey1", "pubkey2"],
     since: Int64(Date.now.timeIntervalSince1970) - 86400 // Last 24 hours
-) { keyPackageContent in
-    // The callback receives the raw content (hex-encoded keypackage bundle)
-    print("Received keypackage: \(keyPackageContent)")
+) { keyPackageContent, encoding in
+    // The callback receives the raw content plus the detected encoding.
+    // If the event includes ["encoding","base64"], `encoding` will be `.base64`.
+    // If the tag is absent, `encoding` will be `.hex` (legacy default).
+    print("Received keypackage (\(encoding)): \(keyPackageContent)")
 }
 
 // Later, unsubscribe

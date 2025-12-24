@@ -11,6 +11,28 @@ import Foundation
 ///
 /// See [NIP-EE](https://github.com/nostr-protocol/nips/blob/master/ee.md).
 public final class KeyPackageEvent: NostrEvent {
+
+    /// Encoding used for the KeyPackage `content` field.
+    ///
+    /// Per `NIP-EE-RELAY.md`, new implementations may include the tag `['encoding','base64']`
+    /// to indicate that the `content` is base64. If the tag is absent, the content is treated
+    /// as hex for backwards compatibility.
+    public enum ContentEncoding: String, Codable, Sendable {
+        case hex
+        case base64
+    }
+
+    /// The encoding used for the `content` field.
+    ///
+    /// Defaults to `.hex` when the `encoding` tag is absent.
+    public var contentEncoding: ContentEncoding {
+        let encoding = firstValueForRawTagName("encoding")?.lowercased()
+        if encoding == ContentEncoding.base64.rawValue {
+            return .base64
+        }
+        return .hex
+    }
+
     public required init(from decoder: Decoder) throws {
         try super.init(from: decoder)
     }
