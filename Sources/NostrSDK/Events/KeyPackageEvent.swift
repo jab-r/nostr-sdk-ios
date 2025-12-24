@@ -111,9 +111,27 @@ public extension KeyPackageEvent {
         }
         
         /// Sets the serialized KeyPackage content.
+        ///
+        /// Per `NIP-EE-RELAY.md`, new implementations SHOULD publish KeyPackages with base64 encoding
+        /// and include `['encoding','base64']`.
+        ///
+        /// - Parameters:
+        ///   - keyPackageData: The serialized MLS KeyPackage bytes.
+        ///   - encoding: Encoding to use for the `content` field. Defaults to `.base64`.
+        ///
+        /// When `encoding == .base64`, this will also add the `encoding` tag (if absent).
+        /// When `encoding == .hex`, this will *not* add an encoding tag (legacy behavior).
         @discardableResult
-        public final func keyPackage(_ keyPackageData: Data) -> Self {
-            content(keyPackageData.hexString)
+        public final func keyPackage(_ keyPackageData: Data, encoding: ContentEncoding = .base64) -> Self {
+            switch encoding {
+            case .hex:
+                return content(keyPackageData.hexString)
+            case .base64:
+                if !tags.contains(where: { $0.name == "encoding" }) {
+                    _ = appendTags(Tag(name: "encoding", value: ContentEncoding.base64.rawValue))
+                }
+                return content(keyPackageData.base64EncodedString())
+            }
         }
         
         /// Sets the MLS protocol version.
@@ -190,11 +208,12 @@ public extension EventCreating {
         handlerEventId: String? = nil,
         relayURL: URL? = nil,
         publishRelayURLs: [URL],
+        encoding: KeyPackageEvent.ContentEncoding = .base64,
         requireAuth: Bool = false,
         signedBy keypair: Keypair
     ) throws -> KeyPackageEvent {
         let builder = KeyPackageEvent.Builder()
-            .keyPackage(keyPackageData)
+            .keyPackage(keyPackageData, encoding: encoding)
             .mlsProtocolVersion(mlsProtocolVersion)
             .ciphersuite(ciphersuite)
             .extensions(extensions)

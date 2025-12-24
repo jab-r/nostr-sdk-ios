@@ -38,15 +38,13 @@ The following NIP-EE-RELAY event kinds have been added to NostrSDK:
 import NostrSDK
 
 // Create a new KeyPackageEvent using the builder pattern
+// New implementations SHOULD publish KeyPackages as base64 and include ["encoding","base64"].
 let builder = KeyPackageEvent.Builder()
-    .mlsKeyPackageData("hex-encoded-keypackage-bundle")
+    .keyPackage(keyPackageData, encoding: .base64)
     .mlsProtocolVersion("1.0")
     .ciphersuite("0x0001")
     .extensions(["0x0001", "0x0002"]) // Extension ID values
-    .clientName("MyNostrClient")
-    .clientHandlerEventId("event-id-of-handler")
-    .clientRelayURL(URL(string: "wss://relay.example.com")!)
-    .relayURLs(["wss://relay1.example.com", "wss://relay2.example.com"])
+    .relayURLs([URL(string: "wss://relay1.example.com")!, URL(string: "wss://relay2.example.com")!])
     .createdAt(Int64(Date.now.timeIntervalSince1970))
 
 // Sign and build the event
