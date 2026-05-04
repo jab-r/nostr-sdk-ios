@@ -338,8 +338,8 @@ Clients creating the Welcome Event SHOULD wait until they have received acknowle
 ```
 
 - The `content` field is required and is a serialized MLSMessage object containing the MLS `Welcome` object.
-- The `e` tag is required and is the ID of the KeyPackage Event used to add the user to the group.
-- The `relays` tag is required and is a list of relays clients should query for Group Events.
+- The `e` tag is optional and is the ID of the KeyPackage Event used to add the user to the group.
+- The `relays` tag is optional and is a list of relays clients should query for Group Events.
 
 Welcome Events are then sealed and gift-wrapped as detailed in [NIP-59](59.md) before being published. Like all events that are sealed and gift-wrapped, `kind: 444` events MUST never be signed. This ensures that if they were ever leaked they would not be publishable to relays.
 
@@ -393,3 +393,7 @@ If a client receives 2 or more `Commit` messages attempting to change same epoch
 2. If the `created_at` timestamp is the same for two or more `Commit` messages, the `Commit` message with the lowest value for `id` field is the message to be applied.
 
 Clients SHOULD retain previous group state for a short period of time in order to recover from forked group state.
+
+### Implementation
+
+We have implemented clients for IOS/Swift, Android/Kotlin, and a relay using the rnostr extension mechanism. The clients and relay implement NIP-42 AUTH. The NIP-EE-RELAY extension both handles keypackage storage and retrieval from the DB as well as the creation of synthetic events as the result of REQ queries. Rate limits are enforced to prevent bad-actor clients from draining the peer keypackages, at the same time we cannot rely on clients to report keypackge consumption because they might not so assume a keypackage is consumed when it is sent. This all enables offline clients to participate in secure MLS groups.
