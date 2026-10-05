@@ -34,7 +34,7 @@ final class NIP44v2EncryptingTests: XCTestCase, FixtureLoading, NIP44v2Encryptin
     func testValidMessageKeys() throws {
         let messageKeyVectors = try XCTUnwrap(vectors.v2.valid.getMessageKeys)
         let conversationKey = messageKeyVectors.conversationKey
-        let conversationKeyBytes = try XCTUnwrap(conversationKey.hexDecoded?.bytes)
+        let conversationKeyBytes = [UInt8](try XCTUnwrap(conversationKey.hexDecoded))
         let keys = messageKeyVectors.keys
 
         try keys.forEach { vector in
@@ -106,7 +106,7 @@ final class NIP44v2EncryptingTests: XCTestCase, FixtureLoading, NIP44v2Encryptin
         try encryptDecryptVectors.forEach { vector in
             let conversationKey = vector.conversationKey
             let conversationKeyData = try XCTUnwrap(conversationKey.hexDecoded)
-            let conversationKeyBytes = conversationKeyData.bytes
+            let conversationKeyBytes = [UInt8](conversationKeyData)
 
             let nonce = try XCTUnwrap(vector.nonce.hexDecoded)
             let expectedPlaintextSHA256 = vector.plaintextSHA256
@@ -182,7 +182,7 @@ final class NIP44v2EncryptingTests: XCTestCase, FixtureLoading, NIP44v2Encryptin
     func testInvalidDecrypt() throws {
         let decryptVectors = try XCTUnwrap(vectors.v2.invalid.decrypt)
         try decryptVectors.forEach { vector in
-            let conversationKey = try XCTUnwrap(vector.conversationKey.hexDecoded).bytes
+            let conversationKey = [UInt8](try XCTUnwrap(vector.conversationKey.hexDecoded))
             let payload = vector.payload
             XCTAssertThrowsError(try decrypt(payload: payload, conversationKey: conversationKey), vector.note)
         }
