@@ -180,7 +180,8 @@ public extension KeyPackageEvent {
         /// Requires NIP-70 authentication for this event.
         @discardableResult
         public final func requireAuthentication() -> Self {
-            appendTags(Tag(name: "-", value: ""))
+            // NIP-70: relays recognize only the one-element `["-"]`; `["-", ""]` is an ordinary tag.
+            appendTags(Tag(name: "-"))
         }
     }
 }

@@ -72,19 +72,38 @@ public enum TagName: String {
 public class Tag: Codable, Equatable, Hashable {
     public static func == (lhs: Tag, rhs: Tag) -> Bool {
         lhs.name == rhs.name &&
+        lhs.hasValue == rhs.hasValue &&
         lhs.value == rhs.value &&
         lhs.otherParameters == rhs.otherParameters
     }
-    
+
     /// The name of the tag.
     public let name: String
 
     /// The main value associated with the tag. For example, for the
     /// pubkey name, the `value` is the 32-byte, hex-encoded pubkey.
+    /// Empty for a tag that is only a name (`hasValue == false`).
     public let value: String
 
     /// The remaining parameters in the array of strings the tag consists of.
     public let otherParameters: [String]
+
+    /// False for a tag that is only a name, such as the NIP-70 protected marker `["-"]`.
+    ///
+    /// Such a tag is encoded back as `[name]`, never `[name, ""]`: the event id is the hash of the
+    /// serialized tags, so writing an empty value would change the id of a received event (its
+    /// signature would no longer verify), and relays recognize the protected marker only as the
+    /// one-element `["-"]` (NIP-70).
+    public let hasValue: Bool
+
+    /// Creates a tag that is only a name, such as the NIP-70 protected marker: `Tag(name: "-")`
+    /// encodes as `["-"]`.
+    public init(name: String) {
+        self.name = name
+        self.value = ""
+        self.otherParameters = []
+        self.hasValue = false
+    }
 
     /// Creates and returns a ``Tag`` object that references some piece of content.
     /// - Parameters:
@@ -96,6 +115,7 @@ public class Tag: Codable, Equatable, Hashable {
         self.name = name
         self.value = value
         self.otherParameters = otherParameters
+        self.hasValue = true
     }
 
     /// Creates and returns a ``Tag`` object that references some piece of content.
@@ -112,8 +132,16 @@ public class Tag: Codable, Equatable, Hashable {
         var container = try decoder.unkeyedContainer()
         
         name = try container.decode(String.self)
+        // A tag may be only a name (NIP-70's `["-"]`); keep that shape so it re-encodes exactly.
+        guard !container.isAtEnd else {
+            value = ""
+            otherParameters = []
+            hasValue = false
+            return
+        }
         value = try container.decode(String.self)
-        
+        hasValue = true
+
         var otherParameters = [String]()
         while !container.isAtEnd {
             let value = try container.decode(String.self)
@@ -124,6 +152,7 @@ public class Tag: Codable, Equatable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(name)
+        hasher.combine(hasValue)
         hasher.combine(value)
         hasher.combine(otherParameters)
     }
@@ -131,6 +160,7 @@ public class Tag: Codable, Equatable, Hashable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.unkeyedContainer()
         try container.encode(name)
+        guard hasValue else { return }
         try container.encode(value)
         for value in otherParameters {
             try container.encode(value)
@@ -143,7 +173,7 @@ public class Tag: Codable, Equatable, Hashable {
     /// An "e" tag (event tag), has a 32-byte event id as the first value and can optionally have a relay URL after that. So its raw value would look like:
     /// [ "e", "1dc8b913d9d4f50a71182dc9232996d6fbc69e8c955866e43ef2c2e35185bbfa", "wss://www.relay.com" ]
     var raw: [String] {
-        [name, value] + otherParameters
+        hasValue ? [name, value] + otherParameters : [name]
     }
 }
 
